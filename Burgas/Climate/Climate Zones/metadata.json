@@ -1,0 +1,39 @@
+{
+    "local_climate_zones": {
+        "extent": [
+            [
+                42.35826059170964,
+                27.194698596539148
+            ],
+            [
+                42.71219681365605,
+                27.597143843825645
+            ]
+        ],
+        "minValue": 3.0,
+        "maxValue": 17.0,
+        "colorStops": [
+            {
+                "value": 3.0,
+                "color": "#fff5eb"
+            },
+            {
+                "value": 6.5,
+                "color": "#ffb776"
+            },
+            {
+                "value": 10.0,
+                "color": "#fd8d3c"
+            },
+            {
+                "value": 13.5,
+                "color": "#c85620"
+            },
+            {
+                "value": 17.0,
+                "color": "#7f2704"
+            }
+        ],
+        "units": "kg/m^3"
+    }
+}
