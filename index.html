@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" integrity="sha256-kLaT2GOSpHechhsozzB+flnD+zUyjE2LlfWPgU04xyI=" crossorigin=""/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="src/leaflet.legend.css" />
+    <link rel="stylesheet" href="map1.css?v=1.1" />
+    <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js" integrity="sha256-WBkoXOwTeyKclOHuWtc+i2uENFpDZ9YPdf5Hf+D7ewM=" crossorigin=""></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+    <script src="Control.FullScreen.js"></script>
+    <script src="map1.js?v=<?php echo time(); ?>" type="text/javascript"></script>
+    <script type="text/javascript" src="src/leaflet.legend.js"></script>
+    <title>Map1</title>
+</head>
+<body>
+    <div id="map"></div>
+    <div id="popup" class="popup">
+        <label for="opacitySlider">Opacity:</label>
+        <input type="range" id="opacitySlider" min="0" max="1" step="0.01">
+        <label for="colorPicker" id="colorPickerLabel">Color:</label>
+        <input type="color" id="colorPicker">
+    </div>
+    <script type="text/javascript">
+        var map = L.map('map', {
+            fullscreenControl: true,
+            fullscreenControlOptions: {
+                title: "Turn on fullscreen",
+                titleCancel: "Exit fullscreen mode"
+            }
+        }).setView([62.62357822995269, 6.568337702605886], 9);
+
+        var OSmap = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="http://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> | <a href="https://www.linkedin.com/in/david-skliba/?locale=en_US" target="_blank">David Šklíba</a>',
+            opacity: 0.5
+        }).addTo(map);
+
+        var Imagery = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.arcgis.com/home/item.html?id=10df2279f9684e4a9f6a7f08febac2a9" target="_blank">ESRI</a> | <a href="https://www.linkedin.com/in/david-skliba/?locale=en_US" target="_blank">David Šklíba</a>',
+            opacity: 1
+        });
+
+        var TopoMap = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href = "https://opentopomap.org/credits" target = "_blank">OpenTopoMap</a> | <a href="https://www.linkedin.com/in/david-skliba/?locale=en_US" target="_blank">David Šklíba</a>',
+            opacity: 0.5
+        });
+
+        var baseLayers = {
+            "OS Map": OSmap,
+            "Imagery": Imagery,
+            "TopoMap": TopoMap
+        };
+
+        let selectedColor = '#450e1c'; // Default color
+
+        var overlayLayers = {
+            "Alesund": L.geoJSON(alesund, { style: getGeoJsonStyle(0) }),
+            "Cascais": L.geoJSON(cascais, { style: getGeoJsonStyle(0) }),
+            "Bruges": L.geoJSON(bruges, { style: getGeoJsonStyle(0) }),
+            "Burgas": L.geoJSON(burgas, { style: getGeoJsonStyle(0) }),
+            "Constanta": L.geoJSON(constanta, { style: getGeoJsonStyle(0) }),
+            "Izmir": L.geoJSON(izmir, { style: getGeoJsonStyle(0) }),
+            "Pisek": L.geoJSON(pisek, { style: getGeoJsonStyle(0) }),
+            "Rijeka": L.geoJSON(rijeka, { style: getGeoJsonStyle(0) }),
+            "Rimini": L.geoJSON(rimini, { style: getGeoJsonStyle(0) })
+        };
+
+        overlayLayers[Object.keys(overlayLayers)[0]].addTo(map)
+
+        function getGeoJsonStyle(fillOpacity = 1) {
+            return {
+                fillColor: lightenColor(selectedColor, 0.5),
+                fillOpacity: fillOpacity,
+                color: selectedColor,
+                weight: 2
+            };
+        }
+
+        var layerViewSettings = {
+            "Alesund": { center: [62.62357822995269, 6.568337702605886], zoom: 9 },
+            "Cascais": { center: [38.7246415419252, -9.398661627395064], zoom: 12 },
+            "Bruges": { center: [51.26277668564624, 3.2157520267962854], zoom: 11 },
+            "Burgas": { center: [42.52365465796975, 27.412133356605594], zoom: 10 },
+            "Constanta": { center: [44.18397145865716, 28.595090491839358], zoom: 11 },
+            "Izmir": { center: [38.4274666702251, 27.15412241220643], zoom: 11 },
+            "Pisek": { center: [49.28765927177321, 14.167823590584321], zoom: 12 },
+            "Rijeka": { center: [45.338554885503896, 14.424501967276987], zoom: 12 },
+            "Rimini": { center: [44.05320342546707, 12.56987993983287], zoom: 13 }
+        };
+
+        let activeLayers = {};
+        let selectedLayer = null;
+
+        async function fetchExtents(path) {
+            try {
+                const response = await fetch(path);
+                const extents = await response.json();
+                return extents;
+            } catch (error) {
+                console.error('Error fetching extents:', error);
+                return {};
+            }
+        }
+
+        async function updateMapWithPng(path, subcategory, pngFileName) {
+            const extents = await fetchExtents(`${path}/metadata.json`);
+            const extent = extents[pngFileName].extent;
+
+            if (extent) {
+                const layer = L.imageOverlay(`${path}/${pngFileName}.png`, extent).addTo(map);
+
+                layer.getElement().style.imageRendering = 'pixelated';
+
+                const layerName = `${subcategory} - ${pngFileName}`;
+
+                // Create a new object with the new layer at the first position
+                const newActiveLayers = { [layerName]: layer, ...activeLayers };
+                activeLayers = newActiveLayers;
+
+                updateActiveLayersPanel();
+            }
+        }
+
+        // Utility function to lighten a color
+        function lightenColor(color, percent) {
+            const num = parseInt(color.replace("#", ""), 16);
+            const amt = Math.round(2.55 * percent * 100);
+            const R = (num >> 16) + amt;
+            const G = (num >> 8 & 0x00FF) + amt;
+            const B = (num & 0x0000FF) + amt;
+
+            return "#" + (
+                0x1000000 +
+                (R < 255 ? R < 1 ? 0 : R : 255) * 0x10000 +
+                (G < 255 ? G < 1 ? 0 : G : 255) * 0x100 +
+                (B < 255 ? B < 1 ? 0 : B : 255)
+            ).toString(16).slice(1).toUpperCase();
+        }
+
+        // Function to show popup for opacity control and legend display
+        async function showPopup(event, layerName) {
+            const popup = document.getElementById('popup');
+            popup.style.display = 'block';
+            popup.style.top = `${event.clientY + 5}px`;
+            popup.style.left = `${event.clientX - popup.offsetWidth}px`;
+
+            const slider = document.getElementById('opacitySlider');
+            const colorPickerLabel = document.getElementById('colorPickerLabel');
+            const colorPicker = document.getElementById('colorPicker');
+
+            const layer = activeLayers[layerName];
+
+            // Set initial slider and color picker values based on the layer's current style
+            if (layer instanceof L.GeoJSON) {
+                colorPickerLabel.style.display = 'inline';
+                colorPicker.style.display = 'inline';
+                const firstFeature = layer.getLayers()[0];
+                const currentColor = firstFeature.options.color || '#000000';
+                colorPicker.value = currentColor;
+            } else {
+                colorPickerLabel.style.display = 'none';
+                colorPicker.style.display = 'none';
+            }
+
+            slider.oninput = function () {
+                const value = this.value;
+
+                if (layer instanceof L.GeoJSON) {
+                    layer.eachLayer(function (featureLayer) {
+                        if (featureLayer.setStyle) {
+                            featureLayer.setStyle({ opacity: value, fillOpacity: value });
+                        }
+                    });
+                } else if (layer instanceof L.ImageOverlay) {
+                    layer.setOpacity(value);
+                }
+            };
+
+            if (layer instanceof L.GeoJSON) {
+                slider.value = layer.options.style ? layer.options.style.opacity || 1 : 1;
+            } else if (layer instanceof L.ImageOverlay) {
+                slider.value = layer.options.opacity || 1;
+
+                // Clear the existing legend content
+                const legendContainer = document.getElementById('legend-container');
+                if (legendContainer) {
+                    legendContainer.remove();
+                }
+
+                // Assuming the URL is stored in layer.options.url
+                const filePath = layer._url;
+                const fileName = layerName.split(" - ")[1]
+                const subcategoryName = layerName.split(" - ")[0]
+                const jsonFilePath = filePath.replace(`${fileName}.png`, 'metadata.json?v=${timestamp}');
+                const imageJSON = await fetchExtents(jsonFilePath);
+                const legendData = imageJSON[fileName];
+                const legendHtml = createColorBarLegend(legendData, subcategoryName);
+                
+                // Create a container for the legend and append it to the popup
+                const legendDiv = document.createElement('div');
+                legendDiv.id = 'legend-container'; // Add an ID to identify it
+                legendDiv.innerHTML = legendHtml;
+                popup.appendChild(legendDiv);
+            }
+
+            colorPicker.oninput = function () {
+                selectedColor = this.value;
+                const fillColor = lightenColor(selectedColor, 0.5);
+
+                // Update the styles of the currently active layer
+                if (layer instanceof L.GeoJSON) {
+                    layer.eachLayer(function (featureLayer) {
+                        if (featureLayer.setStyle) {
+                            featureLayer.setStyle({ color: selectedColor, fillColor: fillColor });
+                        }
+                    });
+                }
+
+                updateDrawingOptions();
+            };
+        }
+
+        // Function to hide the popup
+        function hidePopup() {
+            const popup = document.getElementById('popup');
+            popup.style.display = 'none';
+        }
+
+        async function fetchFolders(path) {
+            try {
+                const response = await fetch(path); // Fetch based on the specific path
+                const folders = await parseResponseToFolders(response);
+                return folders;
+            } catch (error) {
+                console.error('Error fetching folders:', error);
+                return [];
+            }
+        }
+
+        async function fetchFiles(path) {
+            try {
+                const response = await fetch(path); // Fetch based on the specific path
+                const files = await parseResponseToFiles(response);
+                return files;
+            } catch (error) {
+                console.error('Error fetching files:', error);
+                return [];
+            }
+        }
+
+        // Helper functions to parse the response correctly
+        async function parseResponseToFolders(response) {
+            const responseText = await response.text();
+            const contentType = response.headers.get('content-type');
+            if (contentType.includes('application/json')) {
+                return JSON.parse(responseText);
+            } else if (contentType.includes('text/html')) {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(responseText, 'text/html');
+                const links = Array.from(doc.querySelectorAll('a'));
+                return links.map(link => link.textContent).filter(name => name.endsWith('/')).map(name => name.slice(0, -1));
+            }
+            return [];
+        }
+
+        async function parseResponseToFiles(response) {
+            const responseText = await response.text();
+            const contentType = response.headers.get('content-type');
+            if (contentType.includes('application/json')) {
+                return JSON.parse(responseText);
+            } else if (contentType.includes('text/html')) {
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(responseText, 'text/html');
+                const links = Array.from(doc.querySelectorAll('a'));
+                return links.map(link => link.textContent);
+            }
+            return [];
+        }
+
+        function updateDropdownOptions(dropdown, options, title) {
+            dropdown.innerHTML = `<option value="">${title}</option>`;
+            options.forEach(option => {
+                const opt = document.createElement('option');
+                opt.value = option;
+                opt.textContent = option.endsWith('.png') ? option.slice(0, -4) : option;
+                dropdown.appendChild(opt);
+            });
+        }
+
+        async function updateFolderDropdown(layerName) {
+            const folders = await fetchFolders(layerName); // Fetch folders for the specific layer
+            const dropdown = document.getElementById('folderDropdown');
+            updateDropdownOptions(dropdown, folders, 'Select a category');
+        }
+
+        async function updateFileOrSubcategoryDropdown(path) {
+            const files = await fetchFiles(path);
+            const pngFiles = files.filter(file => file.endsWith('.png'));
+            const subfolders = files.filter(file => file.endsWith('/')).map(name => name.slice(0, -1));
+
+            const container = document.getElementById('additionalDropdownContainer');
+            container.innerHTML = '';
+
+            const label = document.createElement('div');
+            label.textContent = pngFiles.length > 0 ? 'Data' : 'Subcategory';
+            label.style.marginTop = '10px';
+            container.appendChild(label);
+
+            const dropdown = document.createElement('select');
+            dropdown.id = 'additionalDropdown';
+
+            if (pngFiles.length > 0) {
+                updateDropdownOptions(dropdown, pngFiles, 'Select an option');
+            } else {
+                updateDropdownOptions(dropdown, subfolders, 'Select a subcategory');
+            }
+
+            container.appendChild(dropdown);
+
+            if (subfolders.length > 0) {
+                dropdown.addEventListener('change', function () {
+                    const selectedSubfolder = this.value;
+                    if (selectedSubfolder) {
+                        updatePngFilesDropdown(`${path}/${selectedSubfolder}`);
+                    }
+                });
+            }
+
+            updateActiveLayersPanel();
+        }
+
+        async function updatePngFilesDropdown(path) {
+            const files = await fetchFiles(path);
+            const pngFiles = files.filter(file => file.endsWith('.png'));
+
+            const container = document.getElementById('pngFilesDropdownContainer');
+            container.innerHTML = ''; // Clear previous content
+
+            const label = document.createElement('div');
+            label.textContent = 'Data';
+            container.appendChild(label);
+
+            const dropdown = document.createElement('select');
+            dropdown.id = 'pngFilesDropdown';
+            updateDropdownOptions(dropdown, pngFiles.map(file => file.slice(0, -4)), 'Select data');
+
+            dropdown.addEventListener('change', function () {
+                const selectedPngFile = this.value;
+                if (selectedPngFile) {
+                    const subcategory = document.getElementById('additionalDropdown').value;
+                    updateMapWithPng(path, subcategory, selectedPngFile);
+                }
+            });
+
+            container.appendChild(dropdown);
+
+            updateActiveLayersPanel();
+        }
+
+        // Utility function to create the colorbar legend HTML
+        function createColorBarLegend(legendData, subcategoryName) {
+            const colorStops = legendData.colorStops;
+            const minValue = legendData.minValue;
+            const maxValue = legendData.maxValue;
+            const units = legendData.units.replace(/\^(\w)/g, '<sup>$1</sup>');
+
+            let legendHtml = '<div class="colorbar-legend">';
+            legendHtml += `<div class="colorbar-title">${subcategoryName} (${units})</div>`;
+            legendHtml += '<div class="colorbar-gradient" style="background: linear-gradient(to right, ';
+
+            colorStops.forEach((stop, index) => {
+                legendHtml += `${stop.color}`;
+                if (index < colorStops.length - 1) {
+                    legendHtml += ', ';
+                }
+            });
+
+            legendHtml += ');">';
+
+            // Adding marks (ticks)
+            colorStops.forEach((stop) => {
+                const positionPercent = ((stop.value - minValue) / (maxValue - minValue)) * 100;
+                legendHtml += `<div class="colorbar-tick" style="left: ${positionPercent}%;"></div>`;
+            });
+
+            legendHtml += '</div>'; // Close .colorbar-gradient
+
+            // Adding value labels below the color bar
+            legendHtml += '<div class="colorbar-labels">';
+            colorStops.forEach((stop) => {
+                const positionPercent = ((stop.value - minValue) / (maxValue - minValue)) * 100;
+                legendHtml += `<div class="colorbar-label" style="left: ${positionPercent}%; text-align: center;">${stop.value}</div>`;
+            });
+            legendHtml += '</div>'; // Close .colorbar-labels
+
+            legendHtml += '</div>'; // Close .colorbar-legend
+
+            return legendHtml;
+        }
+
+        var overlayControl = L.control({ position: 'topright' });
+
+        overlayControl.onAdd = function (map) {
+            var div = L.DomUtil.create('div', 'info legend section-container');
+            div.style.backgroundColor = 'white';
+            div.style.padding = '10px';
+            div.style.border = '2px solid #ccc';
+            div.style.borderRadius = '5px';
+
+            for (var i = 0; i < Object.keys(overlayLayers).length; i++) {
+                var layerName = Object.keys(overlayLayers)[i];
+                var checkedAttribute = i === 0 ? 'checked' : '';
+
+                div.innerHTML +=
+                    '<input type="radio" name="layer" value="' + layerName + '" id="' + layerName + '" ' + checkedAttribute +
+                    ' title="Switch to ' + layerName + '">' +
+                    '<label for="' + layerName + '" title="Switch to ' + layerName + '">' + layerName + '</label><br>';
+            }
+
+            div.innerHTML += '<br><label for="folderDropdown">Category:</label><br>';
+            var select = L.DomUtil.create('select', '', div);
+            select.id = 'folderDropdown';
+            select.innerHTML = '<option value="">Select a category</option>';
+
+            select.addEventListener('change', function () {
+                const selectedOption = this.value;
+                const selectedLayer = document.querySelector('input[name="layer"]:checked').value;
+                const path = `${selectedLayer}/${selectedOption}`;
+                updateFileOrSubcategoryDropdown(path);
+            });
+
+            div.addEventListener('change', function (e) {
+                if (e.target.name === 'layer') {
+                    var selectedLayer = e.target.value;
+
+                    for (var layerName in overlayLayers) {
+                        if (overlayLayers.hasOwnProperty(layerName) && layerName !== selectedLayer) {
+                            map.removeLayer(overlayLayers[layerName]);
+                        }
+                    }
+                    overlayLayers[selectedLayer].addTo(map);
+
+                    if (layerViewSettings[selectedLayer]) {
+                        map.setView(layerViewSettings[selectedLayer].center, layerViewSettings[selectedLayer].zoom);
+                    }
+
+                    // Update the folder dropdown for the selected city
+                    updateFolderDropdown(selectedLayer);
+                }
+            });
+
+            // Add the file upload button above the Active Layers section
+            var fileUploadContainer = L.DomUtil.create('div', '', div);
+            fileUploadContainer.style.marginTop = '10px';
+
+            var fileUploadButton = L.DomUtil.create('input', '', fileUploadContainer);
+            fileUploadButton.type = 'file';
+            fileUploadButton.accept = '.geojson';
+            fileUploadButton.style.width = '100%';
+
+            fileUploadButton.addEventListener('change', function (event) {
+                var file = event.target.files[0];
+                if (file) {
+                    var reader = new FileReader();
+                    reader.onload = function (e) {
+                        var geojson = JSON.parse(e.target.result);
+                        var layer = L.geoJSON(geojson, { style: 
+                            {fillColor: lightenColor("#33302a", 0.5),
+                                fillOpacity: 1,
+                                color: "#33302a",
+                                weight: 2
+                            } 
+                        }).addTo(map);
+                        const bounds = layer.getBounds();
+                        map.fitBounds(bounds); 
+                        const layerName = `${file.name.slice(0, -8)}`;
+
+                        // Create a new object with the new layer at the first position
+                        const newActiveLayers = { [layerName]: layer, ...activeLayers };
+                        activeLayers = newActiveLayers;
+
+                        updateActiveLayersPanel();
+                    };
+                    reader.readAsText(file);
+                }
+            });
+
+
+            var additionalDropdownContainer = L.DomUtil.create('div', '', div);
+            additionalDropdownContainer.id = 'additionalDropdownContainer';
+            additionalDropdownContainer.style.marginTop = '10px';
+
+            var pngFilesDropdownContainer = L.DomUtil.create('div', '', div);
+            pngFilesDropdownContainer.id = 'pngFilesDropdownContainer';
+            pngFilesDropdownContainer.style.marginTop = '10px';
+
+            var activeLayersContainer = L.DomUtil.create('div', '', div);
+            activeLayersContainer.id = 'activeLayersContainer';
+            activeLayersContainer.style.marginTop = '10px';
+
+            var activeLayersHeader = L.DomUtil.create('h4', '', activeLayersContainer);
+            activeLayersHeader.textContent = 'Active Layers';
+
+            var activeLayersList = L.DomUtil.create('div', '', activeLayersContainer);
+            activeLayersList.id = 'activeLayersList';
+
+            var moveButtonsContainer = L.DomUtil.create('div', '', activeLayersContainer);
+            moveButtonsContainer.style.marginTop = '10px';
+
+            var moveUpButton = L.DomUtil.create('button', 'move-button', moveButtonsContainer);
+            moveUpButton.innerHTML = '<i class="fa fa-arrow-up"></i>';
+            moveUpButton.onclick = function () {
+                moveLayerUp();
+            };
+
+            var moveDownButton = L.DomUtil.create('button', 'move-button', moveButtonsContainer);
+            moveDownButton.innerHTML = '<i class="fa fa-arrow-down"></i>';
+            moveDownButton.onclick = function () {
+                moveLayerDown();
+            };
+
+            div.appendChild(additionalDropdownContainer);
+            div.appendChild(pngFilesDropdownContainer);
+            div.appendChild(activeLayersContainer);
+            div.appendChild(fileUploadContainer);
+
+            return div;
+        };
+
+        const popup = document.getElementById('popup');
+        popup.onmouseover = function () {
+            popup.style.display = 'block';
+        };
+        popup.onmouseout = function () {
+            popup.style.display = 'none';
+        };
+
+        L.control.layers(baseLayers).addTo(map);
+        overlayControl.addTo(map);
+        updateFolderDropdown(Object.keys(overlayLayers)[0]);
+
+        // Add a custom button to create a new object
+        L.Control.NewObjectControl = L.Control.extend({
+            onAdd: function(map) {
+                var container = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-control-custom');
+                container.title = 'Add new layer';
+
+                var link = L.DomUtil.create('a', 'leaflet-draw-edit-remove', container);
+                link.href = '#';
+                link.innerHTML = '<i class="fa-solid fa-square-plus"></i>'; // Using Font Awesome icon
+
+                L.DomEvent.on(container, 'click', function (e) {
+                    L.DomEvent.stopPropagation(e);
+                    L.DomEvent.preventDefault(e);
+                    createNewObject();
+                });
+
+                return container;
+            }
+        });
+
+        function createNewObject() {
+            multipartGeoJSON = {
+                "type": "FeatureCollection",
+                "features": []
+            };
+
+            multipartLayer = L.geoJSON(multipartGeoJSON, { style: getGeoJsonStyle() }).addTo(map);
+
+            const layerName = `Draft layer ${Object.keys(activeLayers).length + 1}`;
+            // Create a new object with the new layer at the first position
+            const newActiveLayers = { [layerName]: multipartLayer, ...activeLayers };
+            activeLayers = newActiveLayers;
+            currentLayerName = layerName; // Set the current layer name to the new layer
+            updateActiveLayersPanel();
+        }
+
+
+        // Add the custom control to the map
+        map.addControl(new L.Control.NewObjectControl({ position: 'topleft' }));
+
+        // Add Leaflet Draw controls
+        var drawnLayers = [];
+
+        var multipartGeoJSON = {
+            "type": "FeatureCollection",
+            "features": []
+        };
+
+        // Initialize multipartLayer but do not add to map or activeLayers initially
+        var multipartLayer = L.geoJSON(multipartGeoJSON, { style: getGeoJsonStyle() });
+        var currentLayerName = '';
+
+        // Initialize drawControl with dynamic getGeoJsonStyle function
+        var drawControl = new L.Control.Draw({
+            draw: {
+                polygon: {
+                    shapeOptions: getGeoJsonStyle() // Use the selected color dynamically
+                },
+                polyline: {
+                    shapeOptions: {
+                        color: selectedColor // Use the selected color
+                    }
+                },
+                rectangle: {
+                    shapeOptions: getGeoJsonStyle() // Use the selected color dynamically
+                },
+                marker: {
+                    icon: new L.Icon.Default() // Ensure markers are drawn with the default icon
+                },
+                circle: false,
+                circlemarker: false
+            }
+        });
+        map.addControl(drawControl);
+
+
+        
+        // Handle the creation of drawn items
+        map.on(L.Draw.Event.CREATED, function (event) {
+            var layer = event.layer;
+
+            // Apply the selected color explicitly to the newly drawn feature
+            if (layer.setStyle) {
+                layer.setStyle({
+                    color: selectedColor,
+                    fillColor: lightenColor(selectedColor, 0.5),
+                    fillOpacity: 0.5
+                });
+            }
+
+            // Add the drawn layer to the map and any other necessary collections
+            multipartGeoJSON.features.push(layer.toGeoJSON());
+            multipartLayer.addData(layer.toGeoJSON());
+
+            // Ensure the active layers panel is up-to-date
+            updateActiveLayersPanel();
+        });
+
+        // Initialize the drawing control with the selected color
+        updateDrawingOptions();
+
+        // Function to update drawing options dynamically based on selected color
+        function updateDrawingOptions() {
+            drawControl.setDrawingOptions({
+                polygon: {
+                    shapeOptions: {
+                        color: selectedColor, // Use the dynamically updated selected color
+                        fillColor: lightenColor(selectedColor, 0.5),
+                        fillOpacity: 0.5
+                    }
+                },
+                polyline: {
+                    shapeOptions: {
+                        color: selectedColor
+                    }
+                },
+                rectangle: {
+                    shapeOptions: {
+                        color: selectedColor,
+                        fillColor: lightenColor(selectedColor, 0.5),
+                        fillOpacity: 0.5
+                    }
+                },
+                marker: {
+                    icon: new L.Icon.Default() // Markers should retain the default icon
+                }
+            });
+        }
+
+        // Function to update active layers panel
+        function updateActiveLayersPanel() {
+            const activeLayersList = document.getElementById('activeLayersList');
+            activeLayersList.innerHTML = '';
+            Object.keys(activeLayers).forEach(layerName => {
+                const div = document.createElement('div');
+
+                // Create a checkbox to toggle layer visibility
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.checked = map.hasLayer(activeLayers[layerName]);
+                checkbox.onchange = function () {
+                    toggleLayer(layerName, this.checked);
+                };
+
+                // Create a label for the layer name
+                const layerLabel = document.createElement('span');
+                layerLabel.textContent = layerName;
+                layerLabel.style.cursor = 'pointer';
+                layerLabel.onclick = function () {
+                    // Mark the selected layer
+                    selectedLayer = layerName;
+                    // Highlight the selected layer
+                    document.querySelectorAll('#activeLayersList span').forEach(span => {
+                        span.style.backgroundColor = '';
+                    });
+                    layerLabel.style.backgroundColor = 'lightblue';
+                };
+                layerLabel.onmouseover = function (e) {
+                    showPopup(e, layerName);
+                };
+                layerLabel.onmouseout = hidePopup;
+
+                // Add double-click event for renaming the layer
+                layerLabel.ondblclick = function () {
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.value = layerName;
+                    input.onblur = function () {
+                        const newLayerName = input.value.trim();
+                        if (newLayerName && newLayerName !== layerName) {
+                            activeLayers[newLayerName] = activeLayers[layerName];
+                            delete activeLayers[layerName];
+                            updateActiveLayersPanel();
+                        }
+                    };
+                    input.onkeydown = function (e) {
+                        if (e.key === 'Enter') {
+                            input.blur();
+                        }
+                    };
+                    div.replaceChild(input, layerLabel);
+                    input.focus();
+                };
+
+                // Create a delete button with Font Awesome trash icon
+                const deleteButton = document.createElement('button');
+                deleteButton.innerHTML = '<i class="fa fa-trash"></i>'; // Using Font Awesome trash icon
+                deleteButton.onclick = function () {
+                    deleteLayer(layerName);
+                };
+                deleteButton.style.background = 'none';
+                deleteButton.style.border = 'none';
+                deleteButton.style.cursor = 'pointer';
+                deleteButton.style.color = 'red';
+
+                div.appendChild(checkbox);
+                div.appendChild(layerLabel);
+                div.appendChild(deleteButton);
+                activeLayersList.appendChild(div);
+            });
+        }
+
+
+        // Add an event listener to handle clicks outside the active layers list
+        document.addEventListener('click', function (event) {
+            const activeLayersList = document.getElementById('activeLayersList');
+            if (!activeLayersList.contains(event.target) && !event.target.closest('.move-button')) {
+                // Clear the selected layer
+                selectedLayer = '';
+
+                // Remove the highlight from all layers
+                document.querySelectorAll('#activeLayersList span').forEach(span => {
+                    span.style.backgroundColor = '';
+                });
+            }
+        });
+
+        // Function to toggle layer visibility
+        function toggleLayer(layerName, isChecked) {
+            const layer = activeLayers[layerName];
+            if (isChecked) {
+                layer.addTo(map);
+            } else {
+                map.removeLayer(layer);
+            }
+
+            // Ensure layers are added in the correct order
+            updateMapLayerOrder();
+        }
+
+
+        // Function to update the order of layers on the map
+        function updateMapLayerOrder() {
+            const visibilityStates = {};
+
+            // Store the visibility state of each layer
+            Object.keys(activeLayers).forEach(layerName => {
+                visibilityStates[layerName] = map.hasLayer(activeLayers[layerName]);
+            });
+
+            // Remove all layers
+            Object.keys(activeLayers).forEach(layerName => {
+                map.removeLayer(activeLayers[layerName]);
+            });
+
+            // Re-add layers in the correct order based on visibility state
+            Object.keys(activeLayers).reverse().forEach(layerName => {
+                if (visibilityStates[layerName]) {
+                    activeLayers[layerName].addTo(map);
+                }
+            });
+        }
+
+        // Function to delete a layer
+        function deleteLayer(layerName) {
+            const layer = activeLayers[layerName];
+            if (layer) {
+                map.removeLayer(layer);
+                delete activeLayers[layerName];
+                updateActiveLayersPanel();
+            }
+        }
+
+        function moveLayerUp() {
+            if (selectedLayer) {
+                const layerNames = Object.keys(activeLayers);
+                const index = layerNames.indexOf(selectedLayer);
+                if (index > 0) {
+                    // Swap the layers in the activeLayers object
+                    const temp = layerNames[index - 1];
+                    layerNames[index - 1] = layerNames[index];
+                    layerNames[index] = temp;
+
+                    // Recreate the activeLayers object with the new order
+                    const newActiveLayers = {};
+                    const visibilityStates = {};
+
+                    layerNames.forEach(layerName => {
+                        newActiveLayers[layerName] = activeLayers[layerName];
+                        visibilityStates[layerName] = map.hasLayer(activeLayers[layerName]);
+                    });
+
+                    // Update the activeLayers reference
+                    Object.keys(activeLayers).forEach(key => delete activeLayers[key]);
+                    Object.assign(activeLayers, newActiveLayers);
+
+                    // Re-add layers to the map in the new order
+                    Object.keys(activeLayers).forEach(layerName => {
+                        map.removeLayer(activeLayers[layerName]);
+                    });
+
+                    // Re-add layers to the map in the new order and reapply visibility
+                    Object.keys(activeLayers).reverse().forEach(layerName => {
+                        map.removeLayer(activeLayers[layerName]);
+                        if (visibilityStates[layerName]) {
+                            activeLayers[layerName].addTo(map);
+                        }
+                    });
+
+                    updateActiveLayersPanel();
+
+                    // Reapply highlight to the selected layer
+                    document.querySelectorAll('#activeLayersList span').forEach(span => {
+                        if (span.textContent === selectedLayer) {
+                            span.style.backgroundColor = 'lightblue';
+                        }
+                    });
+                }
+            }
+        }
+
+        function moveLayerDown() {
+            if (selectedLayer) {
+                const layerNames = Object.keys(activeLayers);
+                const index = layerNames.indexOf(selectedLayer);
+                if (index < layerNames.length - 1) {
+                    // Swap the layers in the activeLayers object
+                    const temp = layerNames[index + 1];
+                    layerNames[index + 1] = layerNames[index];
+                    layerNames[index] = temp;
+
+                    // Recreate the activeLayers object with the new order
+                    const newActiveLayers = {};
+                    const visibilityStates = {};
+
+                    layerNames.forEach(layerName => {
+                        newActiveLayers[layerName] = activeLayers[layerName];
+                        visibilityStates[layerName] = map.hasLayer(activeLayers[layerName]);
+                    });
+                    
+                    // Update the activeLayers reference
+                    Object.keys(activeLayers).forEach(key => delete activeLayers[key]);
+                    Object.assign(activeLayers, newActiveLayers);
+
+                    // Re-add layers to the map in the new order
+                    Object.keys(activeLayers).forEach(layerName => {
+                        map.removeLayer(activeLayers[layerName]);
+                    });
+
+                    // Re-add layers to the map in the new order and reapply visibility
+                    Object.keys(activeLayers).reverse().forEach(layerName => {
+                        map.removeLayer(activeLayers[layerName]);
+                        if (visibilityStates[layerName]) {
+                            activeLayers[layerName].addTo(map);
+                        }
+                    });
+
+                    updateActiveLayersPanel();
+
+                    // Reapply highlight to the selected layer
+                    document.querySelectorAll('#activeLayersList span').forEach(span => {
+                        if (span.textContent === selectedLayer) {
+                            span.style.backgroundColor = 'lightblue';
+                        }
+                    });
+                }
+            }
+        }
+    </script>
+</body>
+</html>
