@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link rel="stylesheet" href="src/leaflet.legend.css" />
     <link rel="stylesheet" href="map1.css?v=1.1" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js" integrity="sha256-WBkoXOwTeyKclOHuWtc+i2uENFpDZ9YPdf5Hf+D7ewM=" crossorigin=""></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
     <script src="Control.FullScreen.js"></script>
@@ -403,6 +404,28 @@
             return legendHtml;
         }
 
+        // Function to refresh dropdowns when a new layer is selected
+        function refreshDropdowns(selectedLayer) {
+            const container = document.querySelector('.dropdown-container');
+            clearDropdowns(container);
+
+            fetchJsonData('merged.json').then(data => {
+                if (data && data[selectedLayer]) {
+                    const firstDropdown = container.querySelector('select');
+                    populateDropdown(firstDropdown, data[selectedLayer], "Select weather data");
+
+                    // Add change event to create a new dropdown when an option is selected
+                    firstDropdown.onchange = function () {
+                        const selectedOption = this.value;
+                        createNewDropdown(container, data[selectedLayer][selectedOption]);
+                    };
+                } else {
+                    const firstDropdown = container.querySelector('select');
+                    firstDropdown.innerHTML = '<option value="">No data available</option>';
+                }
+            });
+        }
+
         var overlayControl = L.control({ position: 'topright' });
 
         overlayControl.onAdd = function (map) {
@@ -451,6 +474,9 @@
 
                     // Update the folder dropdown for the selected city
                     updateFolderDropdown(selectedLayer);
+
+                    // Clear and refresh the dropdowns for the selected layer
+                    refreshDropdowns(selectedLayer);
                 }
             });
 
@@ -531,6 +557,339 @@
 
             return div;
         };
+
+        // Function to create a new dropdown based on the selected key
+// Create a new control for the dropdown menus
+var dropdownControl = L.control({ position: 'bottomright' });
+
+dropdownControl.onAdd = function (map) {
+    var div = L.DomUtil.create('div', 'info dropdown-container');
+    div.style.backgroundColor = 'white';
+    div.style.padding = '10px';
+    div.style.border = '2px solid #ccc';
+    div.style.borderRadius = '5px';
+    div.style.marginTop = '10px'; // Add margin to separate it from the overlayControl section
+
+    // Create a headline for the section
+    var headline = document.createElement('h3');
+    headline.innerHTML = 'Climate data in graphs'; // Set the headline text
+    headline.style.marginBottom = '10px'; // Add some spacing below the headline
+    div.appendChild(headline);
+
+    // Create a label for the dropdown
+    var label = document.createElement('label');
+    div.appendChild(label);
+
+    // Create the first dropdown menu
+    var select = L.DomUtil.create('select', '', div);
+    select.id = 'dynamicDropdown';
+    select.innerHTML = '<option value="">Loading...</option>'; // Default message
+
+    // Function to handle radio button change
+    function handleRadioChange() {
+        // Clear existing dropdowns except the first one and the button
+        clearDropdowns(div);
+
+        // Fetch JSON data and populate the first dropdown based on the selected radio button
+        fetchJsonData('merged.json').then(data => {
+            const selectedRadioValue = document.querySelector('input[name="layer"]:checked').value;
+
+            if (data && data[selectedRadioValue]) {
+                populateDropdown(select, data[selectedRadioValue], "Select weather data");
+
+                // Add change event to create a new dropdown when an option is selected
+                select.onchange = function () {
+                    const selectedOption = this.value;
+                    // Clear any existing dropdowns below this one before creating a new one
+                    clearDropdownsBelow(select);
+                    createNewDropdown(div, data[selectedRadioValue][selectedOption]);
+                };
+            } else {
+                select.innerHTML = '<option value="">No data available</option>';
+            }
+        });
+    }
+
+    // Add event listener for radio button changes
+    document.querySelectorAll('input[name="layer"]').forEach(radio => {
+        radio.addEventListener('change', handleRadioChange);
+    });
+
+    // Initial load based on the initially selected radio button
+    handleRadioChange();
+
+    return div;
+};
+
+// Modify the createNewDropdown function to apply custom placeholders for the first and second dropdowns
+function createNewDropdown(container, data, dropdownCount = 1) {
+    if (!data || typeof data !== 'object') return;
+
+    // Create a new dropdown menu below the current one
+    var newDropdown = document.createElement('select');
+    newDropdown.className = 'dropdown-menu'; // Add class for styling
+
+    // Set custom placeholder based on dropdown count
+    let placeholder;
+    if (dropdownCount === 1) {
+        placeholder = "Scenario";  // Custom placeholder for the first dropdown
+    } else if (dropdownCount === 2) {
+        placeholder = "Temporal resolution";  // Custom placeholder for the second dropdown
+    } else {
+        placeholder = "Select an option"; // Default placeholder for other dropdowns
+    }
+
+    populateDropdown(newDropdown, data, placeholder);
+
+    // Ensure the dropdown is displayed as a block element and below the previous one
+    container.insertBefore(document.createElement('br'), container.querySelector('.submit-button'));
+    container.insertBefore(document.createElement('br'), container.querySelector('.submit-button'));
+    container.insertBefore(newDropdown, container.querySelector('.submit-button'));
+
+    // Add change event to the new dropdown to create another one if there are more nested options
+    newDropdown.onchange = function () {
+        // Clear all dropdowns below this one
+        clearDropdownsBelow(newDropdown);
+        
+        if (this.value && data[this.value]) {
+            const nextData = data[this.value];
+            // If it's the second dropdown, add the "From" and "To" dropdowns
+            if (dropdownCount === 2) {
+                addFromToDropdowns(container, nextData);
+            } else {
+                // Create a new dropdown if a valid option is selected
+                createNewDropdown(container, nextData, dropdownCount + 1);
+            }
+        }
+    };
+}
+
+// Function to handle radio button change
+function handleRadioChange() {
+    // Clear existing dropdowns except the first one and the button
+    clearDropdowns(div);
+
+    // Fetch JSON data and populate the first dropdown based on the selected radio button
+    fetchJsonData('merged.json').then(data => {
+        const selectedRadioValue = document.querySelector('input[name="layer"]:checked').value;
+
+        if (data && data[selectedRadioValue]) {
+            populateDropdown(select, data[selectedRadioValue], "Scenario"); // Custom placeholder for the first dropdown
+
+            // Add change event to create a new dropdown when an option is selected
+            select.onchange = function () {
+                const selectedOption = this.value;
+                // Clear any existing dropdowns below this one before creating a new one
+                clearDropdownsBelow(select);
+                createNewDropdown(div, data[selectedRadioValue][selectedOption]);
+            };
+        } else {
+            select.innerHTML = '<option value="">No data available</option>';
+        }
+    });
+}
+
+// Function to clear existing dropdowns except the first one
+function clearDropdowns(container) {
+    // Remove all children except the first three (headline, label, and first dropdown)
+    while (container.children.length > 3) {
+        container.removeChild(container.lastChild);
+    }
+
+    // Clear the options of the first dropdown
+    const firstDropdown = container.querySelector('select');
+    if (firstDropdown) {
+        firstDropdown.innerHTML = '<option value="">Select weather data</option>';
+    }
+}
+
+// Function to clear all dropdowns below the given dropdown
+function clearDropdownsBelow(dropdown) {
+    const container = dropdown.parentElement;
+    // Remove all elements below the dropdown, including the submit button
+    while (dropdown.nextSibling) {
+        container.removeChild(dropdown.nextSibling);
+    }
+}
+
+// Function to add "From" and "To" dropdowns
+function addFromToDropdowns(container, data) {
+    // Add two empty lines
+    container.appendChild(document.createElement('br'));
+    container.appendChild(document.createElement('br'));
+
+    var fromDropdown = document.createElement('select');
+    fromDropdown.className = 'dropdown-menu';
+    populateDropdown(fromDropdown, data, "From");
+    container.appendChild(fromDropdown);
+
+    // Add a spacer
+    var spacer1 = document.createElement('div');
+    spacer1.style.display = 'inline-block';
+    spacer1.style.width = '10px'; // Adjust this width to increase or decrease the space
+    container.appendChild(spacer1);
+
+    var toDropdown = document.createElement('select');
+    toDropdown.className = 'dropdown-menu';
+    populateDropdown(toDropdown, data, "To");
+    container.appendChild(toDropdown);
+
+    // Add another spacer if needed
+    var spacer2 = document.createElement('div');
+    spacer2.style.display = 'inline-block';
+    spacer2.style.width = '10px'; // Adjust this width to increase or decrease the space
+    container.appendChild(spacer2);
+
+    // Add event listeners to "From" and "To" dropdowns
+    fromDropdown.addEventListener('change', checkAndAddSubmitButton);
+    toDropdown.addEventListener('change', checkAndAddSubmitButton);
+
+    // Function to check if both dropdowns have a value selected, then add the submit button
+    function checkAndAddSubmitButton() {
+        if (fromDropdown.value && toDropdown.value) {
+            addSubmitButton(container, data, fromDropdown.value, toDropdown.value);
+        }
+    }
+}
+
+// Function to add a submit button
+function addSubmitButton(container, data, fromKey, toKey) {
+    // Remove any existing button first
+    const existingButton = container.querySelector('.submit-button');
+    if (existingButton) {
+        container.removeChild(existingButton);
+    }
+
+    var button = document.createElement('button');
+    button.className = 'submit-button';
+    button.innerHTML = 'Create graph';
+    container.appendChild(button);
+
+    // Add event listener to the button to display the graph in a popup
+    button.addEventListener('click', function () {
+        showGraphPopup(data, fromKey, toKey);
+    });
+}
+
+
+// Function to show a graph in a popup
+function showGraphPopup(data, fromKey, toKey) {
+    // Create a popup div if it doesn't exist
+    let popup = document.getElementById('graphPopup');
+    if (!popup) {
+        popup = document.createElement('div');
+        popup.id = 'graphPopup';
+        popup.style.position = 'fixed';
+        popup.style.top = '50%';
+        popup.style.left = '50%';
+        popup.style.transform = 'translate(-70%, -50%)';
+        popup.style.backgroundColor = 'white';
+        popup.style.padding = '20px';
+        popup.style.border = '2px solid #ccc';
+        popup.style.borderRadius = '10px';
+        popup.style.zIndex = '1000';
+        document.body.appendChild(popup);
+    } else {
+        popup.innerHTML = ''; // Clear previous content
+    }
+
+    // Create a canvas for Chart.js
+    var canvas = document.createElement('canvas');
+    canvas.width = 700;  // Set width of the chart
+    canvas.height = 550; // Set height of the chart
+    popup.appendChild(canvas);
+
+    // Get the data to plot
+    const selectedData = getDataInRange(data, fromKey, toKey);
+
+    // Prepare data for Chart.js
+    const labels = Object.keys(selectedData);
+    const values = Object.values(selectedData).map(val => parseFloat(val));
+
+    // Create the chart
+    new Chart(canvas.getContext('2d'), {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Data',
+                data: values,
+                fill: false,
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: false,
+            plugins: {
+                legend: {
+                    display: false // This hides the legend
+                }
+            }
+        }
+    });
+
+    // Create a close button for the popup
+    var closeButton = document.createElement('button');
+    closeButton.innerHTML = 'Close';
+    closeButton.style.marginTop = '10px';
+    closeButton.addEventListener('click', function () {
+        document.body.removeChild(popup);
+    });
+    popup.appendChild(closeButton);
+}
+
+// Function to get data between "From" and "To" keys
+function getDataInRange(data, fromKey, toKey) {
+    const keys = Object.keys(data);
+    const fromIndex = keys.indexOf(fromKey);
+    const toIndex = keys.indexOf(toKey);
+
+    if (fromIndex > -1 && toIndex > -1 && fromIndex <= toIndex) {
+        return keys.slice(fromIndex, toIndex + 1).reduce((obj, key) => {
+            obj[key] = data[key];
+            return obj;
+        }, {});
+    } else {
+        console.error('Invalid range selected');
+        return {};
+    }
+}
+
+
+// Function to populate a dropdown with given options and custom placeholder
+function populateDropdown(dropdown, options, placeholder = "Select an option") {
+    dropdown.innerHTML = `<option value="">${placeholder}</option>`; // Reset dropdown with custom placeholder
+    for (const key in options) {
+        if (options.hasOwnProperty(key)) {
+            var option = document.createElement('option');
+            option.value = key;
+            option.textContent = key;
+            dropdown.appendChild(option);
+        }
+    }
+}
+
+// Function to fetch and parse JSON data
+async function fetchJsonData(filePath) {
+    try {
+        const response = await fetch(filePath);
+        if (!response.ok) {
+            throw new Error('Network response was not ok');
+        }
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.error('Error fetching JSON data:', error);
+        return null;
+    }
+}
+
+// Add the dropdownControl to the map
+dropdownControl.addTo(map);
+
+
+
+
 
         const popup = document.getElementById('popup');
         popup.onmouseover = function () {
