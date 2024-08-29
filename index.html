@@ -35,7 +35,7 @@
 
         var OSmap = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
-            attribution: '&copy; <a href="http://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> | <a href="https://www.linkedin.com/in/david-skliba/?locale=en_US" target="_blank">David Šklíba</a>',
+            attribution: '&copy; <a href="http://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a>',
             opacity: 0.5
         }).addTo(map);
 
@@ -404,14 +404,51 @@
             return legendHtml;
         }
 
-        // Function to refresh dropdowns when a new layer is selected
+        function clearDropdownsExceptFirst(container) {
+            // Get the first dropdown
+            let firstDropdown = container.querySelector('select');
+            
+            // If the first dropdown doesn't exist, create it
+            if (!firstDropdown) {
+                firstDropdown = document.createElement('select');
+                firstDropdown.style.width = '100%'; // Ensure it fits the container width
+                firstDropdown.style.overflow = 'hidden'; // Hide overflow
+                firstDropdown.style.textOverflow = 'ellipsis'; // Add ellipsis for overflowed text
+                firstDropdown.style.whiteSpace = 'nowrap'; // Prevent text from wrapping
+                container.appendChild(firstDropdown);
+            }
+
+            // Reset the first dropdown to its default state
+            firstDropdown.innerHTML = '<option value="">Select weather data</option>';
+
+            // Remove all other dropdowns or elements below the first dropdown
+            while (container.children.length > 1) {
+                container.removeChild(container.lastChild);
+            }
+        }
+
+
         function refreshDropdowns(selectedLayer) {
             const container = document.querySelector('.dropdown-container');
-            clearDropdowns(container);
 
+            // Ensure the first dropdown is created and clear all other dropdowns
+            clearDropdownsExceptFirst(container); // Clear everything except the first dropdown
+
+            // Re-select or create the first dropdown
+            let firstDropdown = container.querySelector('select');
+            if (!firstDropdown) {
+                firstDropdown = document.createElement('select');
+                firstDropdown.style.width = '100%'; // Ensure it fits the container width
+                firstDropdown.style.overflow = 'hidden'; // Hide overflow
+                firstDropdown.style.textOverflow = 'ellipsis'; // Add ellipsis for overflowed text
+                firstDropdown.style.whiteSpace = 'nowrap'; // Prevent text from wrapping
+                firstDropdown.id = 'dynamicDropdown';
+                container.appendChild(firstDropdown);
+            }
+
+            // Fetch data and populate the first dropdown
             fetchJsonData('merged.json').then(data => {
                 if (data && data[selectedLayer]) {
-                    const firstDropdown = container.querySelector('select');
                     populateDropdown(firstDropdown, data[selectedLayer], "Select weather data");
 
                     // Add change event to create a new dropdown when an option is selected
@@ -420,11 +457,13 @@
                         createNewDropdown(container, data[selectedLayer][selectedOption]);
                     };
                 } else {
-                    const firstDropdown = container.querySelector('select');
                     firstDropdown.innerHTML = '<option value="">No data available</option>';
                 }
             });
         }
+
+
+
 
         var overlayControl = L.control({ position: 'topright' });
 
@@ -434,6 +473,24 @@
             div.style.padding = '10px';
             div.style.border = '2px solid #ccc';
             div.style.borderRadius = '5px';
+            div.style.position = 'relative'; // To allow absolute positioning of logos
+
+            // Add logos to the top-right
+            var logo1 = L.DomUtil.create('img', 'logo', div);
+            logo1.src = 'ikony/revalue.jpeg'; // Replace with your logo1 path
+            logo1.style.position = 'absolute';
+            logo1.style.top = '0';
+            logo1.style.right = '40px';
+            logo1.style.width = '80px'; // Adjust size as needed
+            logo1.style.height = 'auto'; // Maintain aspect ratio
+
+            var logo2 = L.DomUtil.create('img', 'logo', div);
+            logo2.src = 'ikony/ecoten.svg'; // Replace with your logo2 path
+            logo2.style.position = 'absolute';
+            logo2.style.top = '80px'; // Positioned below the first logo
+            logo2.style.right = '10px';
+            logo2.style.width = '120px'; // Adjust size as needed
+            logo2.style.height = 'auto'; // Maintain aspect ratio
 
             for (var i = 0; i < Object.keys(overlayLayers).length; i++) {
                 var layerName = Object.keys(overlayLayers)[i];
@@ -473,7 +530,7 @@
                     }
 
                     // Update the folder dropdown for the selected city
-                    updateFolderDropdown(selectedLayer);
+                    //updateFolderDropdown(selectedLayer);
 
                     // Clear and refresh the dropdowns for the selected layer
                     refreshDropdowns(selectedLayer);
@@ -560,7 +617,7 @@
 
         // Function to create a new dropdown based on the selected key
 // Create a new control for the dropdown menus
-var dropdownControl = L.control({ position: 'bottomright' });
+var dropdownControl = L.control({ position: 'bottomleft' });
 
 dropdownControl.onAdd = function (map) {
     var div = L.DomUtil.create('div', 'info dropdown-container');
@@ -569,6 +626,7 @@ dropdownControl.onAdd = function (map) {
     div.style.border = '2px solid #ccc';
     div.style.borderRadius = '5px';
     div.style.marginTop = '10px'; // Add margin to separate it from the overlayControl section
+    div.style.width = '200px';
 
     // Create a headline for the section
     var headline = document.createElement('h3');
@@ -576,18 +634,18 @@ dropdownControl.onAdd = function (map) {
     headline.style.marginBottom = '10px'; // Add some spacing below the headline
     div.appendChild(headline);
 
-    // Create a label for the dropdown
-    var label = document.createElement('label');
-    div.appendChild(label);
-
     // Create the first dropdown menu
     var select = L.DomUtil.create('select', '', div);
     select.id = 'dynamicDropdown';
     select.innerHTML = '<option value="">Loading...</option>'; // Default message
+    select.style.width = '100%'; // Ensure it fits the container width
+    select.style.overflow = 'hidden'; // Hide overflow
+    select.style.textOverflow = 'ellipsis'; // Add ellipsis for overflowed text
+    select.style.whiteSpace = 'nowrap'; // Prevent text from wrapping
 
     // Function to handle radio button change
     function handleRadioChange() {
-        // Clear existing dropdowns except the first one and the button
+        // Clear existing dropdowns except the first one
         clearDropdowns(div);
 
         // Fetch JSON data and populate the first dropdown based on the selected radio button
@@ -625,9 +683,21 @@ dropdownControl.onAdd = function (map) {
 function createNewDropdown(container, data, dropdownCount = 1) {
     if (!data || typeof data !== 'object') return;
 
+    // Check if a "Scenario" dropdown already exists and return if it does
+    if (dropdownCount === 1) {
+        const existingScenarioDropdown = container.querySelector('select[placeholder="Scenario"]');
+        if (existingScenarioDropdown) {
+            clearDropdownsBelow(container.querySelector('select'));
+        }
+    }
+    
     // Create a new dropdown menu below the current one
     var newDropdown = document.createElement('select');
     newDropdown.className = 'dropdown-menu'; // Add class for styling
+    newDropdown.style.width = '100%'; // Ensure it fits the container width
+    newDropdown.style.overflow = 'hidden'; // Hide overflow
+    newDropdown.style.textOverflow = 'ellipsis'; // Add ellipsis for overflowed text
+    newDropdown.style.whiteSpace = 'nowrap'; // Prevent text from wrapping
 
     // Set custom placeholder based on dropdown count
     let placeholder;
@@ -639,6 +709,7 @@ function createNewDropdown(container, data, dropdownCount = 1) {
         placeholder = "Select an option"; // Default placeholder for other dropdowns
     }
 
+    newDropdown.setAttribute('placeholder', placeholder); // Set the placeholder as an attribute
     populateDropdown(newDropdown, data, placeholder);
 
     // Insert the dropdown without unnecessary spacing
@@ -766,6 +837,13 @@ function showGraphPopup(data, fromKey, toKey) {
     const defaultDropdown = document.getElementById('dynamicDropdown');
     const selectedWeatherData = defaultDropdown ? defaultDropdown.options[defaultDropdown.selectedIndex].text : '';
 
+    // Get the selected option from the "Scenario" dropdown
+    const scenarioDropdown = document.querySelector('.dropdown-menu');
+    const selectedScenario = scenarioDropdown ? scenarioDropdown.options[scenarioDropdown.selectedIndex].text : '';
+
+    // Combine the names from "Select weather data" and "Scenario"
+    const graphTitleText = `${selectedWeatherData} (${selectedScenario})`;
+
     // Create a popup div if it doesn't exist
     let popup = document.getElementById('graphPopup');
     if (!popup) {
@@ -774,9 +852,9 @@ function showGraphPopup(data, fromKey, toKey) {
         popup.style.position = 'fixed';
         popup.style.top = '50%';
         popup.style.left = '50%';
-        popup.style.transform = 'translate(-70%, -50%)';
+        popup.style.transform = 'translate(-53%, -50%)';
         popup.style.backgroundColor = 'white';
-        popup.style.padding = '20px';
+        popup.style.padding = '5px 20px 5px 20px';
         popup.style.border = '2px solid #ccc';
         popup.style.borderRadius = '10px';
         popup.style.zIndex = '1000';
@@ -784,14 +862,13 @@ function showGraphPopup(data, fromKey, toKey) {
         popup.style.gridTemplateColumns = '1fr 1fr'; // Two columns
         popup.style.gridTemplateRows = '1fr 1fr';    // Two rows
         popup.style.gridGap = '10px';                // Gap between graphs
-        popup.style.width = '50%';                   // Set the width of the popup
+        popup.style.width = '52%';                   // Set the width of the popup
         popup.style.height = '85%';                  // Set the height of the popup to 85%
         document.body.appendChild(popup);
     }
 
     // Ensure a maximum of 4 graphs
     if (popup.querySelectorAll('canvas').length >= 4) { // Check if there are already 4 graphs
-        alert('Maximum of 4 graphs reached. No more graphs can be added.');
         return; // Exit the function without creating a new graph
     }
 
@@ -808,7 +885,7 @@ function showGraphPopup(data, fromKey, toKey) {
 
     // Create a title for the graph
     var graphTitle = document.createElement('h4');
-    graphTitle.innerHTML = `${selectedWeatherData}`;
+    graphTitle.innerHTML = graphTitleText;
     graphTitle.style.textAlign = 'center';
     graphTitle.style.marginBottom = '5px';
     graphContainer.appendChild(graphTitle);
