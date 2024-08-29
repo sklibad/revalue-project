@@ -641,10 +641,8 @@ function createNewDropdown(container, data, dropdownCount = 1) {
 
     populateDropdown(newDropdown, data, placeholder);
 
-    // Ensure the dropdown is displayed as a block element and below the previous one
-    container.insertBefore(document.createElement('br'), container.querySelector('.submit-button'));
-    container.insertBefore(document.createElement('br'), container.querySelector('.submit-button'));
-    container.insertBefore(newDropdown, container.querySelector('.submit-button'));
+    // Insert the dropdown without unnecessary spacing
+    container.appendChild(newDropdown);
 
     // Add change event to the new dropdown to create another one if there are more nested options
     newDropdown.onchange = function () {
@@ -714,31 +712,21 @@ function clearDropdownsBelow(dropdown) {
 
 // Function to add "From" and "To" dropdowns
 function addFromToDropdowns(container, data) {
-    // Add two empty lines
-    container.appendChild(document.createElement('br'));
-    container.appendChild(document.createElement('br'));
+    // Add a container to hold both "From" and "To" dropdowns side by side
+    var fromToContainer = document.createElement('div');
+    fromToContainer.style.display = 'flex';
+    fromToContainer.style.gap = '10px'; // Adjust gap between "From" and "To"
+    container.appendChild(fromToContainer);
 
     var fromDropdown = document.createElement('select');
     fromDropdown.className = 'dropdown-menu';
     populateDropdown(fromDropdown, data, "From");
-    container.appendChild(fromDropdown);
-
-    // Add a spacer
-    var spacer1 = document.createElement('div');
-    spacer1.style.display = 'inline-block';
-    spacer1.style.width = '10px'; // Adjust this width to increase or decrease the space
-    container.appendChild(spacer1);
+    fromToContainer.appendChild(fromDropdown);
 
     var toDropdown = document.createElement('select');
     toDropdown.className = 'dropdown-menu';
     populateDropdown(toDropdown, data, "To");
-    container.appendChild(toDropdown);
-
-    // Add another spacer if needed
-    var spacer2 = document.createElement('div');
-    spacer2.style.display = 'inline-block';
-    spacer2.style.width = '10px'; // Adjust this width to increase or decrease the space
-    container.appendChild(spacer2);
+    fromToContainer.appendChild(toDropdown);
 
     // Add event listeners to "From" and "To" dropdowns
     fromDropdown.addEventListener('change', checkAndAddSubmitButton);
@@ -763,6 +751,7 @@ function addSubmitButton(container, data, fromKey, toKey) {
     var button = document.createElement('button');
     button.className = 'submit-button';
     button.innerHTML = 'Create graph';
+    button.style.marginTop = '10px';
     container.appendChild(button);
 
     // Add event listener to the button to display the graph in a popup
@@ -771,9 +760,12 @@ function addSubmitButton(container, data, fromKey, toKey) {
     });
 }
 
-
-// Function to show a graph in a popup
+// Function to show graphs in a popup with a grid layout
 function showGraphPopup(data, fromKey, toKey) {
+    // Get the selected option from the default dropdown
+    const defaultDropdown = document.getElementById('dynamicDropdown');
+    const selectedWeatherData = defaultDropdown ? defaultDropdown.options[defaultDropdown.selectedIndex].text : '';
+
     // Create a popup div if it doesn't exist
     let popup = document.getElementById('graphPopup');
     if (!popup) {
@@ -788,16 +780,44 @@ function showGraphPopup(data, fromKey, toKey) {
         popup.style.border = '2px solid #ccc';
         popup.style.borderRadius = '10px';
         popup.style.zIndex = '1000';
+        popup.style.display = 'grid';
+        popup.style.gridTemplateColumns = '1fr 1fr'; // Two columns
+        popup.style.gridTemplateRows = '1fr 1fr';    // Two rows
+        popup.style.gridGap = '10px';                // Gap between graphs
+        popup.style.width = '50%';                   // Set the width of the popup
+        popup.style.height = '85%';                  // Set the height of the popup to 85%
         document.body.appendChild(popup);
-    } else {
-        popup.innerHTML = ''; // Clear previous content
     }
+
+    // Ensure a maximum of 4 graphs
+    if (popup.querySelectorAll('canvas').length >= 4) { // Check if there are already 4 graphs
+        alert('Maximum of 4 graphs reached. No more graphs can be added.');
+        return; // Exit the function without creating a new graph
+    }
+
+    // Calculate the available height for each graph container (considering 4 graphs)
+    const availableHeight = popup.clientHeight;
+    const graphContainerHeight = (availableHeight / 2) - 40; // 40px for padding, title, and button
+
+    // Create a container for each graph and its close button
+    var graphContainer = document.createElement('div');
+    graphContainer.style.position = 'relative';
+    graphContainer.style.width = '100%';  // Full width of the grid cell
+    graphContainer.style.height = `${graphContainerHeight}px`; // Set height based on available space
+    popup.appendChild(graphContainer);
+
+    // Create a title for the graph
+    var graphTitle = document.createElement('h4');
+    graphTitle.innerHTML = `${selectedWeatherData}`;
+    graphTitle.style.textAlign = 'center';
+    graphTitle.style.marginBottom = '5px';
+    graphContainer.appendChild(graphTitle);
 
     // Create a canvas for Chart.js
     var canvas = document.createElement('canvas');
-    canvas.width = 700;  // Set width of the chart
-    canvas.height = 550; // Set height of the chart
-    popup.appendChild(canvas);
+    canvas.width = graphContainer.clientWidth;  // Set width of the chart to match container
+    canvas.height = graphContainerHeight - 50; // Subtract space for the title and button
+    graphContainer.appendChild(canvas);
 
     // Get the data to plot
     const selectedData = getDataInRange(data, fromKey, toKey);
@@ -819,7 +839,8 @@ function showGraphPopup(data, fromKey, toKey) {
             }]
         },
         options: {
-            responsive: false,
+            responsive: false, // Set to false to manage sizing manually
+            maintainAspectRatio: false,  // This allows the canvas to resize freely
             plugins: {
                 legend: {
                     display: false // This hides the legend
@@ -828,15 +849,25 @@ function showGraphPopup(data, fromKey, toKey) {
         }
     });
 
-    // Create a close button for the popup
+    // Create a close button below the graph
     var closeButton = document.createElement('button');
     closeButton.innerHTML = 'Close';
-    closeButton.style.marginTop = '10px';
+    closeButton.style.display = 'block';
+    closeButton.style.margin = '10px auto 20px'; // Center the button with spacing below
+    closeButton.style.padding = '5px 10px';
+    closeButton.style.fontSize = '12px';
     closeButton.addEventListener('click', function () {
-        document.body.removeChild(popup);
+        popup.removeChild(graphContainer);
+        if (popup.children.length === 0) {
+            document.body.removeChild(popup);
+        }
     });
-    popup.appendChild(closeButton);
+    graphContainer.appendChild(closeButton);
 }
+
+
+
+
 
 // Function to get data between "From" and "To" keys
 function getDataInRange(data, fromKey, toKey) {
@@ -854,7 +885,6 @@ function getDataInRange(data, fromKey, toKey) {
         return {};
     }
 }
-
 
 // Function to populate a dropdown with given options and custom placeholder
 function populateDropdown(dropdown, options, placeholder = "Select an option") {
@@ -886,6 +916,7 @@ async function fetchJsonData(filePath) {
 
 // Add the dropdownControl to the map
 dropdownControl.addTo(map);
+
 
 
 
